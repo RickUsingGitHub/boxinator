@@ -205,6 +205,44 @@ def _draw_boxinator_icon(size: int) -> QImage:
     return img
 
 
+def _image_to_bmp_dib(img: QImage) -> bytes:
+    """Encode a square QImage as a 32-bpp BGRA BITMAPINFOHEADER + 1-bpp AND mask for .ico."""
+    sz = img.width()
+    argb = img.convertToFormat(QImage.Format_ARGB32)
+    row_bytes = sz * 4
+    xor_rows = bytearray()
+    mask_stride = ((sz + 31) // 32) * 4
+    and_rows = bytearray()
+
+    for y in range(sz - 1, -1, -1):
+        ptr = argb.constScanLine(y)
+        line = bytes(ptr[:row_bytes])
+        xor_rows.extend(line)
+
+        mask_row = bytearray(mask_stride)
+        for x in range(sz):
+            alpha = line[x * 4 + 3]
+            if alpha == 0:
+                mask_row[x >> 3] |= 0x80 >> (x & 7)
+        and_rows.extend(mask_row)
+
+    bih = struct.pack(
+        "<IiiHHIIiiii",
+        40,
+        sz,
+        sz * 2,
+        1,
+        32,
+        0,
+        len(xor_rows) + len(and_rows),
+        0,
+        0,
+        0,
+        0,
+    )
+    return bih + bytes(xor_rows) + bytes(and_rows)
+
+
 def _image_to_png_bytes(img: QImage) -> bytes:
     buf = QBuffer()
     buf.open(QIODevice.WriteOnly)
@@ -216,19 +254,22 @@ def _write_ico(path: Path, sizes: tuple[int, ...] = (16, 24, 32, 48, 64, 128, 25
     frames = []
     for sz in sizes:
         img = _draw_boxinator_icon(sz)
-        frames.append((sz, _image_to_png_bytes(img)))
+        # Standard Windows ICO convention: 32-bpp BMP DIB for <= 128 px (broadest
+        # compatibility with Explorer, shortcuts & Win32 ExtractIcon APIs), PNG for 256 px.
+        payload = _image_to_png_bytes(img) if sz >= 256 else _image_to_bmp_dib(img)
+        frames.append((sz, payload))
 
     n = len(frames)
     header = struct.pack("<HHH", 0, 1, n)
     offset = 6 + 16 * n
     entries = []
     payloads = []
-    for sz, png in frames:
+    for sz, payload in frames:
         w_byte = 0 if sz >= 256 else sz
         h_byte = 0 if sz >= 256 else sz
-        entries.append(struct.pack("<BBBBHHII", w_byte, h_byte, 0, 0, 1, 32, len(png), offset))
-        payloads.append(png)
-        offset += len(png)
+        entries.append(struct.pack("<BBBBHHII", w_byte, h_byte, 0, 0, 1, 32, len(payload), offset))
+        payloads.append(payload)
+        offset += len(payload)
 
     path.write_bytes(header + b"".join(entries) + b"".join(payloads))
 

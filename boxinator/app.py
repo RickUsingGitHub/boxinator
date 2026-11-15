@@ -159,7 +159,7 @@ def _app_icon() -> QIcon:
         roots.append(Path(sys._MEIPASS))
     roots.append(Path(__file__).resolve().parent.parent)
     for root in roots:
-        for rel in ("assets/icon.ico", "assets/icon.png"):
+        for rel in ("assets/icon.png", "assets/icon.ico"):
             cand = root / rel
             if cand.exists():
                 ico = QIcon(str(cand))
@@ -1324,8 +1324,17 @@ class MainWindow(QMainWindow):
 
 
 def run() -> int:
+    import ctypes
+    import sys
+
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Boxinator.App.1")
+        except Exception:
+            pass
     app = QApplication.instance() or QApplication([])
     app.setApplicationName("Boxinator")
+    app.setWindowIcon(_app_icon())
     win = MainWindow()
     win.show()
     return app.exec()
