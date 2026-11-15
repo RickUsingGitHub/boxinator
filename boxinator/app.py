@@ -152,6 +152,20 @@ QStatusBar { background: #14161b; color: #9aa2b1; border-top: 1px solid #2b303c;
 
 
 def _app_icon() -> QIcon:
+    import sys
+
+    roots = []
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        roots.append(Path(sys._MEIPASS))
+    roots.append(Path(__file__).resolve().parent.parent)
+    for root in roots:
+        for rel in ("assets/icon.ico", "assets/icon.png"):
+            cand = root / rel
+            if cand.exists():
+                ico = QIcon(str(cand))
+                if not ico.isNull():
+                    return ico
+
     pm = QPixmap(64, 64)
     pm.fill(Qt.transparent)
     p = QPainter(pm)

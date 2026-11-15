@@ -12,6 +12,8 @@ if not exist .venv\Scripts\python.exe (
 .venv\Scripts\python.exe -m pip install -r requirements.txt pyinstaller || goto :error
 .venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --windowed --onefile ^
     --name Boxinator ^
+    --icon assets\icon.ico ^
+    --add-data "assets;assets" ^
     --exclude-module tkinter ^
     main.py || goto :error
 echo.
